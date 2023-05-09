@@ -68,7 +68,7 @@ rustls = "0.20.4"
 
 [target.'cfg(target_family = "wasm")'.dependencies]
 # backoff = { version = "0.4", features = ["wasm-bindgen"] }
-# getrandom = { version = "0.2", features = ["js"] }
+getrandom = { version = "=0.2.1", features = ["js"] }
 js-sys = "0.3"
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
