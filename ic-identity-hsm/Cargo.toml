@@ -16,7 +16,7 @@ include = ["src", "Cargo.toml", "../LICENSE", "README.md"]
 
 [dependencies]
 hex = { workspace = true }
-ic-agent = { path = "../ic-agent", version = "0.23", features = [
+ic-agent = { path = "../ic-agent", version = "0.24", features = [
     "pem",
 ], default-features = false }
 num-bigint = "0.4.3"
@@ -26,4 +26,4 @@ simple_asn1 = "0.6.0"
 thiserror = { workspace = true }
 
 [dev-dependencies]
-ic-agent = { path = "../ic-agent", version = "0.23", features = ["reqwest"] }
+ic-agent = { path = "../ic-agent", version = "0.24", features = ["reqwest"] }

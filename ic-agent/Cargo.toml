@@ -24,7 +24,7 @@ futures-util = "0.3.21"
 hex = { workspace = true }
 http = "0.2.6"
 http-body = "0.4.5"
-ic-certification = { path = "../ic-certification", version = "0.23" }
+ic-certification = { path = "../ic-certification", version = "0.24" }
 ic-verify-bls-signature = "0.1"
 k256 = { version = "0.13.1", features = ["pem"] }
 leb128 = "0.2.5"
@@ -58,7 +58,7 @@ version = "2.0.1"
 optional = true
 
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
-hyper-rustls = { version = "0.23.0", features = [
+hyper-rustls = { version = "0.24.0", features = [
     "webpki-roots",
     "http2",
 ], optional = true }
