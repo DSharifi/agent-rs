@@ -1,7 +1,7 @@
 //! A [`Transport`] that connects using a [`reqwest`] client.
 #![cfg(feature = "reqwest")]
 
-use ic_transport_types::{CallResponse, RejectResponse, SynCallResponse};
+use ic_transport_types::{CallResponse, CanisterResponse, RejectResponse, ReplyResponse};
 pub use reqwest;
 
 use futures_util::StreamExt;
@@ -197,14 +197,12 @@ impl Transport for ReqwestTransport {
                 .await
                 .and_then(|(body, status)| {
                     if status == StatusCode::OK {
-                        let cbor_decoded_body: Result<SynCallResponse, serde_cbor::Error> =
+                        let cbor_decoded_body: Result<CanisterResponse, serde_cbor::Error> =
                             serde_cbor::from_slice(&body);
 
                         match cbor_decoded_body {
-                            Ok(SynCallResponse::Replied(certificate)) => {
-                                Ok(CallResponse::CertifiedResponse(certificate))
-                            }
-                            Ok(SynCallResponse::Rejected { reject_response }) => {
+                            Ok(CanisterResponse::Replied { certificate }) => Ok(Some(certificate)),
+                            Ok(CanisterResponse::Rejected { reject_response }) => {
                                 Err(AgentError::ReplicaError(reject_response))
                             }
                             Err(cbor_error) => Err(AgentError::InvalidCborData(cbor_error)),

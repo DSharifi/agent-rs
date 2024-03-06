@@ -34,10 +34,10 @@ use crate::{
     to_request_id, RequestId,
 };
 use backoff::{backoff::Backoff, ExponentialBackoffBuilder};
-use ic_certification::{Certificate, Delegation, Label};
+use ic_certification::{certificate, Certificate, Delegation, Label};
 use ic_transport_types::{
     signed::{SignedQuery, SignedRequestStatus, SignedUpdate},
-    SynCallResponse, QueryResponse, ReadStateResponse, SubnetMetrics, CallResponse,
+    CallResponse, QueryResponse, ReadStateResponse, SubnetMetrics,
 };
 use serde::Serialize;
 use status::Status;
@@ -82,7 +82,7 @@ pub trait Transport: Send + Sync {
         effective_canister_id: Principal,
         envelope: Vec<u8>,
         request_id: RequestId,
-    ) -> AgentFuture<CallResponse>;
+    ) -> AgentFuture<Option<Vec<u8>>>;
 
     /// Sends an asynchronous request to a replica. The Request ID is non-mutable and
     /// depends on the content of the envelope.
@@ -129,7 +129,7 @@ impl<I: Transport + ?Sized> Transport for Box<I> {
         effective_canister_id: Principal,
         envelope: Vec<u8>,
         request_id: RequestId,
-    ) -> AgentFuture<CallResponse> {
+    ) -> AgentFuture<Option<Vec<u8>>> {
         (**self).sync_call(effective_canister_id, envelope, request_id)
     }
     fn call(
@@ -163,7 +163,7 @@ impl<I: Transport + ?Sized> Transport for Arc<I> {
         effective_canister_id: Principal,
         envelope: Vec<u8>,
         request_id: RequestId,
-    ) -> AgentFuture<CallResponse> {
+    ) -> AgentFuture<Option<Vec<u8>>> {
         (**self).sync_call(effective_canister_id, envelope, request_id)
     }
     fn call(
@@ -443,6 +443,7 @@ impl Agent {
         self.transport
             .call(effective_canister_id, serialized_bytes, request_id)
             .await?;
+
         Ok(request_id)
     }
 
@@ -452,9 +453,14 @@ impl Agent {
         request_id: RequestId,
         serialized_bytes: Vec<u8>,
     ) -> Result<CallResponse, AgentError> {
-        self.transport
+        let response = self
+            .transport
             .sync_call(effective_canister_id, serialized_bytes, request_id)
-            .await
+            .await?;
+
+        Ok(response
+            .map(CallResponse::CertifiedResponse)
+            .unwrap_or_else(|| CallResponse::Accepted(request_id)))
     }
 
     /// The simplest way to do a query call; sends a byte array and will return a byte vector.
@@ -667,12 +673,16 @@ impl Agent {
         &self,
         effective_canister_id: Principal,
         signed_update: Vec<u8>,
+        // Should return the and_await response type here.
     ) -> Result<CallResponse, AgentError> {
         let envelope: Envelope =
             serde_cbor::from_slice(&signed_update).map_err(AgentError::InvalidCborData)?;
         let request_id = to_request_id(&envelope.content)?;
-        self.sync_call_endpoint(effective_canister_id, request_id, signed_update)
-            .await
+        let response = self
+            .sync_call_endpoint(effective_canister_id, request_id, signed_update)
+            .await;
+
+        todo!()
     }
 
     /// Send the signed update to the network. Will return a [`RequestId`].
@@ -792,6 +802,8 @@ impl Agent {
             }
         }
     }
+
+    pub async fn 
 
     /// Request the raw state tree directly, under an effective canister ID.
     /// See [the protocol docs](https://internetcomputer.org/docs/current/references/ic-interface-spec#http-read-state) for more information.
@@ -1010,7 +1022,6 @@ impl Agent {
 
         lookup_request_status(cert, request_id)
     }
-
 
     /// Send the signed request_status to the network. Will return [`RequestStatusResponse`].
     /// The bytes will be checked to verify that it is a valid request_status.
@@ -1580,7 +1591,9 @@ impl<'a> UpdateCall<'a> {
                     .wait(request_id, self.effective_canister_id)
                     .await
             }
-            CallResponse::CertifiedResponse(certificate) => Ok(certificate.0),
+            CallResponse::CertifiedResponse(certificate) => {
+                todo!("Run som verification on the certificate. Handle edge cases where the certified response is not a terminal state");
+            },
         }
     }
 }
@@ -1658,12 +1671,14 @@ impl<'agent> UpdateBuilder<'agent> {
                 )
                 .await
         };
+
         UpdateCall {
             agent: self.agent,
             response_future: Box::pin(sync_call_response_future),
             effective_canister_id: self.effective_canister_id,
         }
-        todo!()
+        .and_wait()
+        .await
     }
 
     /// Make an update call. This will return a RequestId.
@@ -1679,6 +1694,7 @@ impl<'agent> UpdateBuilder<'agent> {
                     self.ingress_expiry_datetime,
                 )
                 .await
+                .map(CallResponse::Accepted)
         };
         UpdateCall {
             agent: self.agent,
